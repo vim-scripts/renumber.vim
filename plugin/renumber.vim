@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.7 2003/03/26 11:41:29 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.8 2003/03/27 10:05:06 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -20,7 +20,7 @@ function! Renumber(...)
   let l = l1 | let cs = c1
   let line=getline(l)
 
-  let search = '^[0-9]\+'
+  let search = '[0-9]\+'
   
   " Process args
   let step=1 | let all_line=0 | let days=0 | let months=0
@@ -33,10 +33,10 @@ function! Renumber(...)
       let all_line = 1
     elseif arg == 'd'
       let days = 1
-      let search = '^\c\<\(mo\%[nday]\|tu\%[esday]\|we\%[dnesday]\|th\%[ursday]\|fr\%[iday]\|sa\%[turday]\|su\%[nday]\)\>'
+      let search = '\c\<\(mo\%[nday]\|tu\%[esday]\|we\%[dnesday]\|th\%[ursday]\|fr\%[iday]\|sa\%[turday]\|su\%[nday]\)\>'
     elseif arg == 'm'
       let months = 1
-      let search = '^\c\<\(jan\%[uary]\|feb\%[ruary]\|mar\%[ch]\|apr\%[il]\|may\|jun\%[e]\|jul\%[y]\|aug\%[ust]\|sep\%[tember]\|oct\%[ober]\|nov\%[ember]\|dec\%[ember]\)\>'
+      let search = '\c\<\(jan\%[uary]\|feb\%[ruary]\|mar\%[ch]\|apr\%[il]\|may\|jun\%[e]\|jul\%[y]\|aug\%[ust]\|sep\%[tember]\|oct\%[ober]\|nov\%[ember]\|dec\%[ember]\)\>'
     else
       echomsg 'Renumber: invalid argument "'.arg.'"'
       return
@@ -77,8 +77,9 @@ function! Renumber(...)
   let endcol  = ce
 
   " Set initial day/month
+  let truncate = 1
   if days
-    let daynum = (match('motuwethfrsasu',strpart(number,0,2))) / 2
+    let daynum = (match('motuwethfrsasu','\c'.strpart(number,0,2))) / 2
     let day0='Monday'
     let day1='Tuesday'
     let day2='Wednesday'
@@ -86,8 +87,11 @@ function! Renumber(...)
     let day4='Friday'
     let day5='Saturday'
     let day6='Sunday'
+    if number ==? day{daynum}
+      let truncate = 0
+    endif
   elseif months
-    let monthnum = (match('janfebmaraprmayjunjulaugsepoctnovdec',strpart(number,0,3))) / 3
+    let monthnum = (match('janfebmaraprmayjunjulaugsepoctnovdec','\c'.strpart(number,0,3))) / 3
     let month0='January'
     let month1='February'
     let month2='March'
@@ -100,6 +104,9 @@ function! Renumber(...)
     let month9='October'
     let month10='November'
     let month11='December'
+    if number ==? month{monthnum}
+      let truncate = 0
+    endif
   endif
 
   " Start cycling through rest of block
@@ -107,25 +114,22 @@ function! Renumber(...)
   while l <= l2
     let line=getline(l)
 
-    " Locate next number within marked block - try forwards from here
+    " Locate next number within marked block, starting from first value
     let numberfound = 1
-    let cs = ci
-    while cs <= c2  &&  strpart(line,cs,numsize) !~ search
-      let cs = cs + 1
-    endwhile
+    let cs = match( line, search, ci )
     " See if found
     if cs > c2
-      " Not found - try backwards
+      " Not found - try backwards within block
       let cs = ci
-      while cs >= c1  &&  strpart(line,cs,numsize) !~ search
+      while cs >= c1  &&  strpart(line,cs,numsize) !~ '^' . search
         let cs = cs - 1
       endwhile
       if cs < c1
         " Not found at all (within block)
         let numberfound = 0
       else
-        " Found end - now find beginning
-        while cs >= 0  &&  strpart(line,cs,numsize) =~ search
+        " Found something - now find beginning
+        while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
           let cs = cs - 1
         endwhile
         let cs = cs + 1
@@ -134,7 +138,7 @@ function! Renumber(...)
       endif
     else
       " Found number - make sure it's the start (might have hit the middle)
-      while cs >= 0  &&  strpart(line,cs,numsize) =~ search
+      while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
         let cs = cs - 1
       endwhile
       let cs = cs + 1
@@ -145,22 +149,19 @@ function! Renumber(...)
     " If not found, locate next number in whole line - try forwards from here
     if ! numberfound  &&  all_line
       let numberfound = 1
-      let cs = ci
-      while cs <= strlen(line)  &&  strpart(line,cs,numsize) !~ search
-        let cs = cs + 1
-      endwhile
+      let cs = match( line, search, ci ) + ci
       " See if found
-      if cs > strlen(line)
+      if cs < ci
         " Not found - try backwards
         let cs = ci
-        while cs >= 0  &&  strpart(line,cs,numsize) !~ search
+        while cs >= 0  &&  strpart(line,cs,numsize) !~ '^' . search
           let cs = cs - 1
         endwhile
         if cs < 0
           let numberfound = 0
         else
           " Found end - now find beginning
-          while cs >= 0  &&  strpart(line,cs,numsize) =~ search
+          while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
             let cs = cs - 1
           endwhile
           let cs = cs + 1
@@ -175,6 +176,8 @@ function! Renumber(...)
 
     " Found number to process?
     if numberfound
+      " Reset ci - it'll make future searching faster
+      let ci = cs
 
       " Now skip leading spaces we may need to change
       let cs = cs - 1
@@ -185,11 +188,19 @@ function! Renumber(...)
 
       " Create number to insert:
       if days
-        let daynum = ( daynum + 1 ) % 7
-        let this = strpart( day{daynum}, 0, numsize )
+        let daynum = ( daynum + step ) % 7
+        if truncate
+          let this = strpart( day{daynum}, 0, numsize )
+        else
+          let this = day{daynum}
+        endif
       elseif months
-        let monthnum = ( monthnum + 1 ) % 12
-        let this = strpart( month{monthnum}, 0, numsize )
+        let monthnum = ( monthnum + step ) % 12
+        if truncate
+          let this = strpart( month{monthnum}, 0, numsize )
+        else
+          let this = month{monthnum}
+        endif
       else
         " Pad with leading zeros if required
         let number = number + step
