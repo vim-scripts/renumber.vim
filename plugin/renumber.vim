@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.11 2003/12/04 09:25:10 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.12 2004/04/19 08:39:33 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -8,6 +8,36 @@
 "     d         'Renumber' days of the week
 "     m         'Renumber' months of the year
 "     r         Reverse - start from bottom of block
+
+" Vim has no way to generate hex?!
+if has('perl') && ! exists('*Dec2Hex')
+  function! Dec2Hex(val)
+    let cmd = "perl VIM::DoCommand(\"let result='\".sprintf(\"%X\"," . a:val . ").\"'\")"
+    exe cmd
+    if ! exists('result')
+      echoerr "Dec2Hex(" . a:val . ") failed with: " . cmd
+      return a:val
+    else
+      return result
+    endif
+  endfunction
+  let s:Dec2Hex = 1
+elseif exists('*Dec2Hex')
+  let s:Dec2Hex = 1
+else
+  let s:Dec2Hex = 0
+endif
+
+" Looks for match, coping with 'x' which may be part of '0x'
+function! s:Matches( line, pos, size, search, hexprefix )
+  let matches = strpart(a:line,a:pos,a:size) =~ '^' . a:search
+  if ! matches  &&  a:hexprefix != ''  &&  a:pos > 0  &&  strpart(a:line,a:pos,1) =~ '[Xx]'
+    let matches = strpart(a:line,a:pos-1,a:size) =~ '^' . a:search
+  endif
+  return matches
+endfunction
+
+" The actual function
 function! Renumber(...)
   let initline = line('.') | let initcol = virtcol('.')
   let vc1=virtcol("'<") | let l1=line("'<") | if vc1<0 | let vc1=0x7FFFFFFF | endif
@@ -23,11 +53,12 @@ function! Renumber(...)
   exe 'normal ' . vc1 . '|'
   let cs = col('.') - 1
 
-  let search = '-\=[0-9]\+'
+  let search = '-\=\(0[Xx][0-9a-fA-F]\+\|[0-9]\+\)'
 
   " Process args
   let step=1 | let all_line=0 | let days=0 | let months=0
   let argno = 1
+  let numbers = 1
   while argno <= a:0
     exe 'let arg = a:' . argno
     if arg =~ '^s-\?\d\+$'
@@ -36,9 +67,11 @@ function! Renumber(...)
       let all_line = 1
     elseif arg == 'd'
       let days = 1
+      let numbers = 0
       let search = '\c\<\(mo\%[nday]\|tu\%[esday]\|we\%[dnesday]\|th\%[ursday]\|fr\%[iday]\|sa\%[turday]\|su\%[nday]\)\>'
     elseif arg == 'm'
       let months = 1
+      let numbers = 0
       let search = '\c\<\(jan\%[uary]\|feb\%[ruary]\|mar\%[ch]\|apr\%[il]\|may\|jun\%[e]\|jul\%[y]\|aug\%[ust]\|sep\%[tember]\|oct\%[ober]\|nov\%[ember]\|dec\%[ember]\)\>'
     elseif arg == 'r'
       let reverse = 1
@@ -65,25 +98,53 @@ function! Renumber(...)
   exe 'normal 0' . cs . 'l'
   let vci = virtcol('.')
 
+  " Handle negative no. specially (make later anti-octal chomp work)
+  if strpart(line,cs,1) == '-'
+    let negative = 1
+    let cs = cs + 1
+  else
+    let negative = 0
+  endif
+
+  " Set hex prefix
+  let hexprefix = ''
+  if numbers
+    let hexprefix = matchstr( line, '^0[Xx]', cs )
+    if hexprefix != ''  &&  ! s:Dec2Hex
+      echoerr "Renumber: hex renumbering with no Hex2Dec function or perl"
+      return
+    endif
+  endif
+
   " See if numbers are to be padded with 0s
-  if strpart(line,cs,1) == '0'
+  if numbers  &&  match( line, '^\(0[Xx]\)\=0', cs )
     let prepad  = '0'
   else
     let prepad  = ' '
   endif
 
   " Set size of number to pad to with 0s
-  let numsize = ce-cs+1
+  let numsize = ce-cs+1 - strlen(hexprefix)
+  if negative
+    let numsize = numsize + 1
+  endif
 
   " Now chomp zeros so we don't interpret number as octal!
-  while strpart(line,cs,1) == '0'
-    let cs = cs + 1
-  endwhile
+  if numbers && hexprefix == '' 
+    while strpart(line,cs,1) == '0'
+      let cs = cs + 1
+    endwhile
+  endif
   if cs > ce
     let cs = ce
   endif
-  let number  = strpart(line,cs,ce-cs+1)
+  let number  = 0 + strpart(line,cs,ce-cs+1)
   let endcol  = ce
+
+  " Now fix the sign
+  if negative
+    let number = -number
+  endif
 
   " Set initial day/month
   let truncate = 1
@@ -137,7 +198,7 @@ function! Renumber(...)
     if cs > c2 || cs == -1
       " Not found - try backwards within block
       let cs = ci
-      while cs >= c1  &&  strpart(line,cs,numsize) !~ '^' . search
+      while cs >= c1  &&  ! s:Matches(line,cs,numsize,search,hexprefix)
         let cs = cs - 1
       endwhile
       if cs < c1
@@ -145,7 +206,7 @@ function! Renumber(...)
         let numberfound = 0
       else
         " Found something - now find beginning
-        while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
+        while cs >= 0  &&  s:Matches(line,cs,numsize,search,hexprefix)
           let cs = cs - 1
         endwhile
         let cs = cs + 1
@@ -154,7 +215,7 @@ function! Renumber(...)
       endif
     else
       " Found number - make sure it's the start (might have hit the middle)
-      while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
+      while cs >= 0  &&  s:Matches(line,cs,numsize,search,hexprefix)
         let cs = cs - 1
       endwhile
       let cs = cs + 1
@@ -170,14 +231,14 @@ function! Renumber(...)
       if cs < ci
         " Not found - try backwards
         let cs = ci
-        while cs >= 0  &&  strpart(line,cs,numsize) !~ '^' . search
+        while cs >= 0  &&  ! s:Matches(line,cs,numsize,search,hexprefix)
           let cs = cs - 1
         endwhile
         if cs < 0
           let numberfound = 0
         else
-          " Found end - now find beginning
-          while cs >= 0  &&  strpart(line,cs,numsize) =~ '^' . search
+          " Found something - now find beginning
+          while cs >= 0  &&  s:Matches(line,cs,numsize,search,hexprefix)
             let cs = cs - 1
           endwhile
           let cs = cs + 1
@@ -210,6 +271,7 @@ function! Renumber(...)
         else
           let this = day{daynum}
         endif
+
       elseif months
         let monthnum = ( monthnum + step ) % 12
         if truncate
@@ -217,22 +279,30 @@ function! Renumber(...)
         else
           let this = month{monthnum}
         endif
+
       else
-        " Pad with leading zeros if required
+        " Numbers
         let number = number + step
         let this = number
+
         if number < 0
           let neg = '-'
           let this = -this
         else
           let neg = ''
         endif
-        if prepad == '0'
+
+        if hexprefix != ''
+          let this = Dec2Hex(this)
+        endif
+
+        if prepad != ''
           while strlen(this) < numsize
             let this = prepad . this
           endwhile
         endif
-        let this = neg . this
+
+        let this = neg . hexprefix . this
       endif
 
       " Right-align the numbers
