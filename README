@@ -1,0 +1,37 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=189
+
+This would seem to be very similar in function to Inc (vimscript #156) - I put it here mainly for posterity.
+
+The main differences are that it will honour preceeding zeros (without assuming octal ... plus, 0 in hex numbers are honoured: "0x0001"), and it will 'tidy up' misaligned numbers, to a degree (only right-aligns ATM). It uses the location of the first number to determine the alignment location.
+
+You may now renumber starting at the /bottom/ of a block with the 'r' (reverse) option.  Note that you still have a default increment of +1, so to renumber a block ending at '10' you need to change the last number in the file to "10", make your selection and "Renumber r s-1".
+
+Renumber will also renumber days & months (e.g., Jan,Feb.Mar, etc.).  To renumber days, use the 'd' argument - for months, it's 'm'.
+
+Use by selecting the block of text (visually, linewise or blockwise, etc.), then issuing:
+
+:'<,'>Renumber
+
+.. or some other range indicator.
+
+Renumber will search the selection for a number (left -> right), and use that (hence use blockwise selection (<Ctrl-V>) to specify a column).  It will only edit numbers it finds in subsequent lines that have approximately the same position within each line.
+
+You may pass in any arguments in any order:
+
+a  - consider whole of line when searching for next number (even blockwise).
+d - renumber with day names
+m - renumber with month names
+r - reverse block order: start renumbering from bottom of block upwards
+sN  - [no space] use increment N (may be negative).
+
+Eg.,
+
+:'<,'>Renumber a
+:'<,'>Renumber s4
+:'<,'>Renumber a s-2
+:'<,'>Renumber m s3
+:'<,'>Renumber r s-1
+
+
+Todo - add a left-justify option (probably '-').
+
