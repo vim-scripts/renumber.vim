@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.12 2004/04/19 08:39:33 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.13 2004/04/19 13:03:39 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -94,6 +94,15 @@ function! Renumber(...)
   if ce == -1
     let ce = strlen(line) - 1
   endif
+
+  " Need to run backwards in case only last bit of initial value is selected
+  if numbers
+    while cs >= 0  &&  s:Matches(line,cs,strlen(line),search,'0x')
+      let cs = cs - 1
+    endwhile
+    let cs = cs + 1
+  endif
+
   " Find virtcol of initial match
   exe 'normal 0' . cs . 'l'
   let vci = virtcol('.')
@@ -130,7 +139,7 @@ function! Renumber(...)
   endif
 
   " Now chomp zeros so we don't interpret number as octal!
-  if numbers && hexprefix == '' 
+  if numbers && hexprefix == ''
     while strpart(line,cs,1) == '0'
       let cs = cs + 1
     endwhile
