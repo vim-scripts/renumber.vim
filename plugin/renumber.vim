@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.10 2003/05/18 17:10:00 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.11 2003/12/04 09:25:10 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -9,20 +9,22 @@
 "     m         'Renumber' months of the year
 "     r         Reverse - start from bottom of block
 function! Renumber(...)
-  let c1=col("'<") | let l1=line("'<") | if c1<0 | let c1=0x7FFFFFFF | endif
-  let c2=col("'>") | let l2=line("'>") | if c2<0 | let c2=0x7FFFFFFF | endif
+  let initline = line('.') | let initcol = virtcol('.')
+  let vc1=virtcol("'<") | let l1=line("'<") | if vc1<0 | let vc1=0x7FFFFFFF | endif
+  let vc2=virtcol("'>") | let l2=line("'>") | if vc2<0 | let vc2=0x7FFFFFFF | endif
   if l1 > l2
     let l1=line("'>") | let l2=line("'<")
   endif
-  if c1 > c2
-    let tmpc = c1 | let c1=c2 | let c2=tmpc | unlet tmpc
+  if vc1 > vc2
+    let tmpc = vc1 | let vc1=vc2 | let vc2=tmpc | unlet tmpc
   endif
-  let c1 = c1 - 1 | let c2 = c2 - 1
   let l = l1 | let lstep = 1
-  let cs = c1
+  exe l
+  exe 'normal ' . vc1 . '|'
+  let cs = col('.') - 1
 
   let search = '-\=[0-9]\+'
-  
+
   " Process args
   let step=1 | let all_line=0 | let days=0 | let months=0
   let argno = 1
@@ -59,7 +61,9 @@ function! Renumber(...)
   if ce == -1
     let ce = strlen(line) - 1
   endif
-  let ci = cs
+  " Find virtcol of initial match
+  exe 'normal 0' . cs . 'l'
+  let vci = virtcol('.')
 
   " See if numbers are to be padded with 0s
   if strpart(line,cs,1) == '0'
@@ -118,12 +122,19 @@ function! Renumber(...)
   let l = l + lstep
   while ( lstep < 0 && l >= l1 ) || ( lstep > 0 && l <= l2 )
     let line=getline(l)
+    exe l
+    exe 'normal ' . vc1 . '|'
+    let c1 = col('.') - 1
+    exe 'normal ' . vc2 . '|'
+    let c2 = col('.') - 1
+    exe 'normal ' . vci . '|'
+    let ci = col('.') - 1
 
     " Locate next number within marked block, starting from first value
     let numberfound = 1
     let cs = match( line, search, ci )
-    " See if found
-    if cs > c2
+    " See if found (in range)
+    if cs > c2 || cs == -1
       " Not found - try backwards within block
       let cs = ci
       while cs >= c1  &&  strpart(line,cs,numsize) !~ '^' . search
@@ -236,5 +247,8 @@ function! Renumber(...)
 
     let l = l + lstep
   endwhile
+
+  exe initline
+  exe 'normal ' . initcol . '|'
 endfunction
 command! -range -nargs=? Renumber  call Renumber(<f-args>)
