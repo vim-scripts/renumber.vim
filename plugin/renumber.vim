@@ -1,12 +1,13 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.9 2003/03/31 08:52:35 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.10 2003/05/18 17:10:00 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
 "     a         Search all of line for number, not just marked block columns
 "     d         'Renumber' days of the week
 "     m         'Renumber' months of the year
+"     r         Reverse - start from bottom of block
 function! Renumber(...)
   let c1=col("'<") | let l1=line("'<") | if c1<0 | let c1=0x7FFFFFFF | endif
   let c2=col("'>") | let l2=line("'>") | if c2<0 | let c2=0x7FFFFFFF | endif
@@ -17,10 +18,10 @@ function! Renumber(...)
     let tmpc = c1 | let c1=c2 | let c2=tmpc | unlet tmpc
   endif
   let c1 = c1 - 1 | let c2 = c2 - 1
-  let l = l1 | let cs = c1
-  let line=getline(l)
+  let l = l1 | let lstep = 1
+  let cs = c1
 
-  let search = '[0-9]\+'
+  let search = '-\=[0-9]\+'
   
   " Process args
   let step=1 | let all_line=0 | let days=0 | let months=0
@@ -37,6 +38,9 @@ function! Renumber(...)
     elseif arg == 'm'
       let months = 1
       let search = '\c\<\(jan\%[uary]\|feb\%[ruary]\|mar\%[ch]\|apr\%[il]\|may\|jun\%[e]\|jul\%[y]\|aug\%[ust]\|sep\%[tember]\|oct\%[ober]\|nov\%[ember]\|dec\%[ember]\)\>'
+    elseif arg == 'r'
+      let reverse = 1
+      let l = l2 | let lstep = -1
     else
       echomsg 'Renumber: invalid argument "'.arg.'"'
       return
@@ -45,6 +49,7 @@ function! Renumber(...)
   endwhile
 
   " Locate initial number (start at top-left of selected block)
+  let line = getline(l)
   let ce = matchend( line, search, cs ) - 1
   let cs = match( line, search, cs )
   if cs == -1
@@ -66,7 +71,7 @@ function! Renumber(...)
   " Set size of number to pad to with 0s
   let numsize = ce-cs+1
 
-  " Now chomp zeros to we don't interpret number as octal!
+  " Now chomp zeros so we don't interpret number as octal!
   while strpart(line,cs,1) == '0'
     let cs = cs + 1
   endwhile
@@ -110,8 +115,8 @@ function! Renumber(...)
   endif
 
   " Start cycling through rest of block
-  let l = l + 1
-  while l <= l2
+  let l = l + lstep
+  while ( lstep < 0 && l >= l1 ) || ( lstep > 0 && l <= l2 )
     let line=getline(l)
 
     " Locate next number within marked block, starting from first value
@@ -229,7 +234,7 @@ function! Renumber(...)
       call setline( l, line )
     endif
 
-    let l = l + 1
+    let l = l + lstep
   endwhile
 endfunction
 command! -range -nargs=? Renumber  call Renumber(<f-args>)
