@@ -1,18 +1,18 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.3 2002/01/23 14:48:16 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.4 2002/03/12 12:43:46 nabird Exp $
 " Function: Renumber a block of numbers
-" Args:  (any order)
+" Args:     (any order)
 "     s<step>  Increment number by 'step'
 "     a        Search all of line for number, not just marked block columns
 function! Renumber(...)
-  let c1=virtcol("'<") | let l1=line("'<")
-  let c2=virtcol("'>") | let l2=line("'>")
+  let c1=col("'<") | let l1=line("'<") | if c1<0 | let c1=0x7FFFFFFF | endif
+  let c2=col("'>") | let l2=line("'>") | if c2<0 | let c2=0x7FFFFFFF | endif
   if l1 > l2
     let l1=line("'>") | let l2=line("'<")
   endif
   if c1 > c2
-    let c1=virtcol("'>") | let c2=virtcol("'<")
+    let tmpc = c1 | let c1=c2 | let c2=tmpc | unlet tmpc
   endif
   let c1 = c1 - 1 | let c2 = c2 - 1
   let l = l1 | let cs = c1
