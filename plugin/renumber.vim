@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.8 2003/03/27 10:05:06 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.9 2003/03/31 08:52:35 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -27,7 +27,7 @@ function! Renumber(...)
   let argno = 1
   while argno <= a:0
     exe 'let arg = a:' . argno
-    if arg =~ '^s\d\+$'
+    if arg =~ '^s-\?\d\+$'
       let step = strpart(arg,1,strlen(arg)-1)
     elseif arg == 'a'
       let all_line = 1
