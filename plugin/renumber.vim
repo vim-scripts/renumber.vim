@@ -1,6 +1,6 @@
 " renumber.vim
 " Author:   Neil Bird <neil@fnxweb.com>
-" Version:  $Id: renumber.vim,v 1.13 2004/04/19 13:03:39 nabird Exp $
+" Version:  $Id: renumber.vim,v 1.16 2005/07/14 11:49:21 nabird Exp $
 " Function: Renumber a block of numbers
 " Args:     (any order)
 "     s<step>   Increment number by 'step'
@@ -126,7 +126,7 @@ function! Renumber(...)
   endif
 
   " See if numbers are to be padded with 0s
-  if numbers  &&  match( line, '^\(0[Xx]\)\=0', cs )
+  if numbers  &&  match( line, '^\(0[Xx]\)\=0', cs ) != -1
     let prepad  = '0'
   else
     let prepad  = ' '
@@ -147,7 +147,11 @@ function! Renumber(...)
   if cs > ce
     let cs = ce
   endif
-  let number  = 0 + strpart(line,cs,ce-cs+1)
+  if numbers
+    let number = 0 + strpart(line,cs,ce-cs+1)
+  else
+    let number = strpart(line,cs,ce-cs+1)
+  endif
   let endcol  = ce
 
   " Now fix the sign
@@ -293,10 +297,12 @@ function! Renumber(...)
         " Numbers
         let number = number + step
         let this = number
+        let padsize = numsize
 
         if number < 0
           let neg = '-'
           let this = -this
+          let padsize = padsize - 1
         else
           let neg = ''
         endif
@@ -306,7 +312,7 @@ function! Renumber(...)
         endif
 
         if prepad != ''
-          while strlen(this) < numsize
+          while strlen(this) < padsize
             let this = prepad . this
           endwhile
         endif
